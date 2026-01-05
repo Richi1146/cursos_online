@@ -1,0 +1,39 @@
+# .NET Core
+**/[Bb]in/
+**/[Oo]bj/
+**/out/
+**/.vs/
+**/*.user
+**/*.suo
+**/*.launchSettings.json
+*.patch
+*.diff
+
+# Visual Studio Code
+.vscode/
+
+# Identity/Secrets
+**/appsettings.Development.json
+**/appsettings.local.json
+
+# Node.js / Frontend
+**/node_modules/
+**/npm-debug.log
+**/yarn-error.log
+**/dist/
+**/.env
+**/.env.local
+**/.env.*.local
+**/coverage/
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Docker
+docker-compose.override.yml
