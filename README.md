@@ -56,8 +56,6 @@ graph TD
 
 ---
 
----
-
 ## 🧪 Pruebas (Testing)
 
 El proyecto cuenta con una suite de **más de 10 tests unitarios** que cubren las reglas de negocio críticas.
