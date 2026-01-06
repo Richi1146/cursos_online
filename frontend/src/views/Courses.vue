@@ -16,6 +16,19 @@ const showCreateModal = ref(false)
 const newCourseTitle = ref('')
 const createLoading = ref(false)
 
+// Custom UI State
+const notification = ref({ show: false, message: '', type: 'error' })
+const confirmModal = ref({ show: false, title: '', message: '', action: null })
+
+const showNotify = (message, type = 'error') => {
+    notification.value = { show: true, message, type }
+    setTimeout(() => { notification.value.show = false }, 4000)
+}
+
+const askConfirm = (title, message, action) => {
+    confirmModal.value = { show: true, title, message, action }
+}
+
 const fetchCourses = async () => {
   loading.value = true
   try {
@@ -32,7 +45,7 @@ const fetchCourses = async () => {
     courses.value = response.data.items
     totalCount.value = response.data.totalCount
   } catch (error) {
-    console.error('Failed to fetch courses', error)
+    showNotify('Failed to fetch courses')
   } finally {
     loading.value = false
   }
@@ -45,24 +58,29 @@ const createCourse = async () => {
         const response = await api.post('/courses', { title: newCourseTitle.value })
         showCreateModal.value = false
         newCourseTitle.value = ''
+        showNotify('Course created successfully!', 'success')
         fetchCourses() // Refresh
-        // Optionally redirect to detail
-        // router.push(`/courses/${response.data.id}`)
     } catch (e) {
-        alert('Failed to create course')
+        showNotify('Failed to create course')
     } finally {
         createLoading.value = false
     }
 }
 
 const deleteCourse = async (id) => {
-    if(!confirm('Are you sure you want to delete this course?')) return
-    try {
-        await api.delete(`/courses/${id}`)
-        fetchCourses()
-    } catch(e) {
-        alert('Failed to delete course')
-    }
+    askConfirm(
+        'Delete Course',
+        'Are you sure you want to delete this course? All associated lessons will be removed.',
+        async () => {
+            try {
+                await api.delete(`/courses/${id}`)
+                showNotify('Course deleted', 'success')
+                fetchCourses()
+            } catch(e) {
+                showNotify('Failed to delete course')
+            }
+        }
+    )
 }
 
 watch([page, search, statusFilter], () => {
@@ -87,131 +105,233 @@ onMounted(() => {
 
 <template>
   <div>
-    <div class="sm:flex sm:items-center">
-      <div class="sm:flex-auto">
-        <h1 class="text-3xl font-bold tracking-tight text-slate-900">Courses</h1>
-        <p class="mt-2 text-sm text-slate-500">Manage your online courses and lessons.</p>
-      </div>
-      <div class="mt-4 sm:ml-16 sm:mt-0 sm:flex-none">
-        <button 
-           @click="showCreateModal = true"
-           class="block rounded-lg bg-blue-600 px-4 py-2.5 text-center text-sm font-semibold text-white shadow-sm hover:bg-blue-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600 transition-all"
-        >
-          New Course
-        </button>
+    <!-- Hero Section -->
+    <div class="relative mb-16">
+      <div class="sm:flex sm:items-center sm:justify-between">
+        <div class="sm:flex-auto">
+          <h1 class="text-5xl font-black tracking-tight text-white mb-4">
+            Explore <span class="text-gradient">Knowledge</span>
+          </h1>
+          <p class="text-lg text-slate-400 font-medium max-w-2xl">
+            Master new skills with our professional courses. Learn from experts and build your future today.
+          </p>
+        </div>
+        <div class="mt-8 sm:ml-16 sm:mt-0 sm:flex-none">
+          <button 
+             @click="showCreateModal = true"
+             class="btn-premium flex items-center gap-2"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+              <path fill-rule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" clip-rule="evenodd" />
+            </svg>
+            Create Course
+          </button>
+        </div>
       </div>
     </div>
 
-    <!-- Filters -->
-    <div class="mt-8 flex flex-col sm:flex-row gap-4">
-        <div class="relative flex-grow">
-            <div class="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3">
-                <svg class="h-5 w-5 text-slate-400" viewBox="0 0 20 20" fill="currentColor">
+    <!-- Filters & Search -->
+    <div class="flex flex-col sm:flex-row gap-4 mb-12">
+        <div class="relative flex-grow group">
+            <div class="absolute inset-y-0 left-0 flex items-center pl-5 pointer-events-none">
+                <svg class="h-5 w-5 text-slate-500 group-focus-within:text-blue-500 transition-colors" viewBox="0 0 20 20" fill="currentColor">
                    <path fill-rule="evenodd" d="M9 3.5a5.5 5.5 0 100 11 5.5 5.5 0 000-11zM2 9a7 7 0 1112.452 4.391l3.328 3.329a.75.75 0 11-1.06 1.06l-3.329-3.328A7 7 0 012 9z" clip-rule="evenodd" />
                 </svg>
             </div>
             <input 
                 v-model.lazy="search"
                 type="text" 
-                class="block w-full rounded-md border-0 py-2 pl-10 text-slate-900 ring-1 ring-inset ring-slate-300 placeholder:text-slate-400 focus:ring-2 focus:ring-inset focus:ring-blue-600 sm:text-sm sm:leading-6 shadow-sm"
-                placeholder="Search courses..."
+                class="input-premium pl-16"
+                placeholder="Search for courses, topics, or skills..."
             />
         </div>
-        <div class="w-full sm:w-48">
-            <select v-model="statusFilter" class="block w-full rounded-md border-0 py-2 text-slate-900 ring-1 ring-inset ring-slate-300 focus:ring-2 focus:ring-inset focus:ring-blue-600 sm:text-sm sm:leading-6 shadow-sm">
-                <option value="">All Statuses</option>
-                <option :value="0">Draft</option>
-                <option :value="1">Published</option>
+        <div class="w-full sm:w-64 relative">
+            <select v-model="statusFilter" class="input-premium appearance-none cursor-pointer pr-10">
+                <option value="" class="bg-slate-900 text-slate-100">All Statuses</option>
+                <option :value="0" class="bg-slate-900 text-slate-100">Draft</option>
+                <option :value="1" class="bg-slate-900 text-slate-100">Published</option>
             </select>
+            <div class="absolute inset-y-0 right-0 flex items-center pr-4 pointer-events-none text-slate-500">
+                <svg class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                    <path fill-rule="evenodd" d="M5.23 7.21a.75.75 0 011.06.02L10 11.168l3.71-3.938a.75.75 0 111.08 1.04l-4.25 4.5a.75.75 0 01-1.08 0l-4.25-4.5a.75.75 0 01.02-1.06z" clip-rule="evenodd" />
+                </svg>
+            </div>
         </div>
     </div>
 
-    <!-- Grid -->
-    <div v-if="loading" class="mt-8 flex justify-center">
-        <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+    <!-- Loading State -->
+    <div v-if="loading" class="flex flex-col items-center justify-center py-24">
+        <div class="w-16 h-16 border-4 border-blue-500/20 border-t-blue-500 rounded-full animate-spin mb-4"></div>
+        <p class="text-slate-500 font-bold uppercase tracking-widest text-xs">Loading Courses...</p>
     </div>
 
-    <div v-else class="mt-8 grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
+    <!-- Course Grid -->
+    <div v-else class="grid grid-cols-1 gap-8 sm:grid-cols-2 lg:grid-cols-3">
         <div 
            v-for="course in courses" 
            :key="course.id" 
-           class="relative flex flex-col bg-white rounded-xl shadow-[0_2px_15px_-3px_rgba(0,0,0,0.07),0_10px_20px_-2px_rgba(0,0,0,0.04)] ring-1 ring-slate-100 hover:shadow-lg transition-all duration-300 overflow-hidden group"
+           class="glass-card group flex flex-col h-full overflow-hidden"
         >
-           <div class="p-6 flex-1">
-              <div class="flex justify-between items-start mb-4">
-                   <span 
-                     class="inline-flex items-center rounded-md px-2 py-1 text-xs font-medium ring-1 ring-inset"
-                     :class="getStatusColor(course.status)"
-                   >
-                     {{ getStatusLabel(course.status) }}
-                   </span>
-                   <div class="relative group-hover:opacity-100 opacity-0 transition-opacity">
-                      <button @click.stop="deleteCourse(course.id)" class="text-slate-400 hover:text-red-500">
-                         <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
-                           <path stroke-linecap="round" stroke-linejoin="round" d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0" />
-                         </svg>
-                      </button>
-                   </div>
+           <!-- Course Image Placeholder / Decoration -->
+           <div class="h-48 w-full bg-gradient-to-br from-slate-800 to-slate-900 relative overflow-hidden">
+              <div class="absolute inset-0 opacity-20 group-hover:opacity-30 transition-opacity">
+                 <div class="absolute top-0 left-0 w-full h-full bg-[radial-gradient(circle_at_center,_var(--tw-gradient-stops))] from-blue-500/20 via-transparent to-transparent"></div>
               </div>
-              <h3 class="text-xl font-semibold text-slate-900 group-hover:text-blue-600 transition-colors cursor-pointer" @click="router.push(`/courses/${course.id}`)">
+              <div class="absolute top-4 left-4">
+                 <span 
+                   class="px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider border"
+                   :class="course.status === 1 ? 'bg-green-500/10 text-green-400 border-green-500/20' : 'bg-slate-500/10 text-slate-400 border-slate-500/20'"
+                 >
+                   {{ getStatusLabel(course.status) }}
+                 </span>
+              </div>
+              <div class="absolute inset-0 flex items-center justify-center">
+                 <div class="w-16 h-16 bg-white/5 rounded-2xl flex items-center justify-center backdrop-blur-md border border-white/10 group-hover:scale-110 transition-transform duration-500">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8 text-blue-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
+                    </svg>
+                 </div>
+              </div>
+           </div>
+
+           <div class="p-6 flex-1 flex flex-col">
+              <h3 class="text-xl font-bold text-white mb-3 group-hover:text-blue-400 transition-colors line-clamp-2 leading-tight">
                  {{ course.title }}
               </h3>
-              <p class="mt-2 text-sm text-slate-500 line-clamp-2">
-                 Created on {{ new Date(course.createdAt).toLocaleDateString() }}
+              <p class="text-sm text-slate-400 font-medium mb-6 line-clamp-2">
+                 Master the fundamentals and advanced concepts of {{ course.title.split(' ')[0] }}.
               </p>
-           </div>
-           
-           <div class="bg-slate-50 px-6 py-4 border-t border-slate-100 flex justify-between items-center">
-              <button 
-                @click="router.push(`/courses/${course.id}`)"
-                class="text-sm font-semibold text-blue-600 hover:text-blue-800 transition-colors"
-              >
-                Manage &rarr;
-              </button>
-              <span class="text-xs text-slate-400">ID: {{ course.id.substring(0,8) }}...</span>
+              
+              <div class="mt-auto pt-6 border-t border-white/5 flex items-center justify-between">
+                 <div class="flex items-center gap-2">
+                    <div class="w-6 h-6 rounded-full bg-blue-500/20 flex items-center justify-center">
+                       <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3 text-blue-400" viewBox="0 0 20 20" fill="currentColor">
+                          <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-12a1 1 0 10-2 0v4a1 1 0 00.293.707l2.828 2.829a1 1 0 101.415-1.415L11 9.586V6z" clip-rule="evenodd" />
+                       </svg>
+                    </div>
+                    <span class="text-[10px] font-bold text-slate-500 uppercase tracking-widest">
+                       {{ new Date(course.createdAt).toLocaleDateString() }}
+                    </span>
+                 </div>
+                 
+                 <div class="flex items-center gap-3">
+                    <button @click.stop="deleteCourse(course.id)" class="p-2 text-slate-600 hover:text-red-400 hover:bg-red-400/10 rounded-lg transition-all opacity-0 group-hover:opacity-100">
+                       <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                       </svg>
+                    </button>
+                    <button 
+                      @click="router.push(`/courses/${course.id}`)"
+                      class="px-4 py-2 bg-blue-500/10 text-blue-400 text-xs font-black uppercase tracking-widest rounded-lg hover:bg-blue-500 hover:text-white transition-all"
+                    >
+                      Enter
+                    </button>
+                 </div>
+              </div>
            </div>
         </div>
     </div>
     
     <!-- Empty State -->
-    <div v-if="!loading && courses.length === 0" class="mt-12 text-center py-12 bg-white rounded-xl border border-dashed border-slate-300">
-        <svg class="mx-auto h-12 w-12 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
-        </svg>
-        <h3 class="mt-2 text-sm font-semibold text-slate-900">No courses found</h3>
-        <p class="mt-1 text-sm text-slate-500">Get started by creating a new course.</p>
-        <div class="mt-6">
-            <button @click="showCreateModal = true" class="inline-flex items-center rounded-md bg-blue-600 px-3 py-2 text-sm font-semibold text-white shadow-sm hover:bg-blue-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600">
-                <svg class="-ml-0.5 mr-1.5 h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-                    <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm.75-11.25a.75.75 0 00-1.5 0v2.5h-2.5a.75.75 0 000 1.5h2.5v2.5a.75.75 0 001.5 0v-2.5h2.5a.75.75 0 000-1.5h-2.5v-2.5z" clip-rule="evenodd" />
-                </svg>
-                Create Course
-            </button>
+    <div v-if="!loading && courses.length === 0" class="mt-12 text-center py-24 glass-card border-dashed border-white/10">
+        <div class="w-20 h-20 bg-white/5 rounded-3xl flex items-center justify-center mx-auto mb-6">
+           <svg class="h-10 w-10 text-slate-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
+           </svg>
         </div>
+        <h3 class="text-2xl font-bold text-white mb-2">No courses found</h3>
+        <p class="text-slate-400 font-medium mb-8">Ready to share your knowledge with the world?</p>
+        <button @click="showCreateModal = true" class="btn-premium inline-flex items-center gap-2">
+            <svg class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm.75-11.25a.75.75 0 00-1.5 0v2.5h-2.5a.75.75 0 000 1.5h2.5v2.5a.75.75 0 001.5 0v-2.5h2.5a.75.75 0 000-1.5h-2.5v-2.5z" clip-rule="evenodd" />
+            </svg>
+            Create Your First Course
+        </button>
     </div>
     
     <!-- Modal -->
-    <div v-if="showCreateModal" class="relative z-50" aria-labelledby="modal-title" role="dialog" aria-modal="true">
-        <div class="fixed inset-0 bg-slate-900/30 backdrop-blur-sm transition-opacity" @click="showCreateModal = false"></div>
-        <div class="fixed inset-0 z-10 w-screen overflow-y-auto">
-            <div class="flex min-h-full items-end justify-center p-4 text-center sm:items-center sm:p-0">
-                <div class="relative transform overflow-hidden rounded-lg bg-white text-left shadow-xl transition-all sm:my-8 sm:w-full sm:max-w-lg" @click.stop>
-                    <div class="bg-white px-4 pb-4 pt-5 sm:p-6 sm:pb-4">
-                        <h3 class="text-base font-semibold leading-6 text-slate-900" id="modal-title">Create New Course</h3>
-                        <div class="mt-4">
-                            <label class="block text-sm font-medium text-slate-700">Course Title</label>
-                            <input v-model="newCourseTitle" type="text" class="mt-1 block w-full rounded-md border-0 py-2 px-3 text-slate-900 shadow-sm ring-1 ring-inset ring-slate-300 focus:ring-2 focus:ring-inset focus:ring-blue-600 sm:text-sm sm:leading-6" placeholder="e.g. Advanced Vue.js Patterns">
-                        </div>
-                    </div>
-                    <div class="bg-slate-50 px-4 py-3 sm:flex sm:flex-row-reverse sm:px-6">
-                        <button @click="createCourse" :disabled="createLoading || !newCourseTitle.trim()" type="button" class="inline-flex w-full justify-center rounded-md bg-blue-600 px-3 py-2 text-sm font-semibold text-white shadow-sm hover:bg-blue-500 sm:ml-3 sm:w-auto disabled:opacity-70">
-                            {{ createLoading ? 'Creating...' : 'Create' }}
-                        </button>
-                        <button @click="showCreateModal = false" type="button" class="mt-3 inline-flex w-full justify-center rounded-md bg-white px-3 py-2 text-sm font-semibold text-slate-900 shadow-sm ring-1 ring-inset ring-slate-300 hover:bg-slate-50 sm:mt-0 sm:w-auto">Cancel</button>
-                    </div>
+    <div v-if="showCreateModal" class="fixed inset-0 z-[100] flex items-center justify-center p-4">
+        <div class="absolute inset-0 bg-[#020617]/80 backdrop-blur-md" @click="showCreateModal = false"></div>
+        <div class="relative glass-card w-full max-w-lg p-8 shadow-2xl animate-in zoom-in-95 duration-300" @click.stop>
+            <div class="flex justify-between items-center mb-8">
+               <h3 class="text-2xl font-black text-white tracking-tight">New <span class="text-blue-500">Course</span></h3>
+               <button @click="showCreateModal = false" class="text-slate-500 hover:text-white transition-colors">
+                  <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+               </button>
+            </div>
+            
+            <div class="space-y-6">
+                <div class="space-y-2">
+                    <label class="text-sm font-bold text-slate-300 ml-1">Course Title</label>
+                    <input 
+                      v-model="newCourseTitle" 
+                      type="text" 
+                      class="input-premium" 
+                      placeholder="e.g. Advanced Vue.js Patterns"
+                      @keyup.enter="createCourse"
+                    >
+                </div>
+                
+                <div class="flex gap-3 pt-4">
+                    <button @click="showCreateModal = false" class="flex-1 px-6 py-3 rounded-xl font-bold text-slate-400 hover:bg-white/5 transition-all">
+                       Cancel
+                    </button>
+                    <button 
+                      @click="createCourse" 
+                      :disabled="createLoading || !newCourseTitle.trim()" 
+                      class="flex-1 btn-premium"
+                    >
+                        {{ createLoading ? 'Creating...' : 'Create Course' }}
+                    </button>
                 </div>
             </div>
         </div>
     </div>
+
+    <!-- Notifications -->
+    <Transition
+        enter-active-class="transform ease-out duration-300 transition"
+        enter-from-class="translate-y-2 opacity-0 sm:translate-y-0 sm:translate-x-2"
+        enter-to-class="translate-y-0 opacity-100 sm:translate-x-0"
+        leave-active-class="transition ease-in duration-100"
+        leave-from-class="opacity-100"
+        leave-to-class="opacity-0"
+     >
+        <div v-if="notification.show" class="fixed bottom-8 right-8 z-[200] w-full max-w-sm">
+            <div class="glass-card !bg-slate-900/90 border-l-4 p-4 shadow-2xl" :class="notification.type === 'success' ? 'border-green-500' : 'border-red-500'">
+                <div class="flex items-center gap-3">
+                    <div v-if="notification.type === 'success'" class="text-green-500">
+                        <svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                    </div>
+                    <div v-else class="text-red-500">
+                        <svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                    </div>
+                    <p class="text-sm font-bold text-white">{{ notification.message }}</p>
+                </div>
+            </div>
+        </div>
+     </Transition>
+
+     <!-- Confirm Modal -->
+     <div v-if="confirmModal.show" class="fixed inset-0 z-[150] flex items-center justify-center p-4">
+        <div class="absolute inset-0 bg-[#020617]/80 backdrop-blur-md" @click="confirmModal.show = false"></div>
+        <div class="relative glass-card w-full max-w-md p-8 shadow-2xl animate-in zoom-in-95 duration-300" @click.stop>
+            <h3 class="text-2xl font-black text-white tracking-tight mb-4">{{ confirmModal.title }}</h3>
+            <p class="text-slate-400 font-medium mb-8">{{ confirmModal.message }}</p>
+            <div class="flex gap-3">
+                <button @click="confirmModal.show = false" class="flex-1 px-6 py-3 rounded-xl font-bold text-slate-400 hover:bg-white/5 transition-all">
+                    Cancel
+                </button>
+                <button 
+                  @click="() => { confirmModal.action(); confirmModal.show = false; }" 
+                  class="flex-1 bg-red-500 hover:bg-red-600 text-white rounded-xl font-bold transition-all shadow-lg shadow-red-500/20"
+                >
+                    Confirm
+                </button>
+            </div>
+        </div>
+     </div>
   </div>
 </template>

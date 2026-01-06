@@ -27,7 +27,13 @@ namespace OnlineCourses.Infrastructure.Data
                 .HasMany(c => c.Lessons)
                 .WithOne(l => l.Course)
                 .HasForeignKey(l => l.CourseId)
-                .OnDelete(DeleteBehavior.Restrict); // Handled logically, but restrict DB cascade
+                .OnDelete(DeleteBehavior.Restrict);
+
+            // Unique Index for Lesson Order per Course (Partial Index for Soft Delete)
+            modelBuilder.Entity<Lesson>()
+                .HasIndex(l => new { l.CourseId, l.Order })
+                .IsUnique()
+                .HasFilter("\"IsDeleted\" = false");
         }
     }
 }

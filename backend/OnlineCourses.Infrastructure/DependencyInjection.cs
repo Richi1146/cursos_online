@@ -27,6 +27,7 @@ namespace OnlineCourses.Infrastructure
             services.AddScoped(typeof(IRepository<>), typeof(EfRepository<>));
             services.AddScoped<ICourseRepository, CourseRepository>();
             services.AddScoped<ILessonRepository, LessonRepository>();
+            services.AddScoped<IUnitOfWork, UnitOfWork>();
 
             return services;
         }

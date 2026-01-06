@@ -32,14 +32,12 @@ namespace OnlineCourses.Infrastructure.Repositories
         public async Task AddAsync(T entity)
         {
             await _dbSet.AddAsync(entity);
-            await _context.SaveChangesAsync();
         }
 
         public async Task UpdateAsync(T entity)
         {
             entity.UpdatedAt = DateTime.UtcNow;
             _dbSet.Update(entity);
-            await _context.SaveChangesAsync();
         }
 
         public async Task DeleteAsync(T entity)
@@ -48,7 +46,6 @@ namespace OnlineCourses.Infrastructure.Repositories
             entity.IsDeleted = true;
             entity.UpdatedAt = DateTime.UtcNow;
             _dbSet.Update(entity);
-            await _context.SaveChangesAsync();
         }
 
         public async Task SaveChangesAsync()

@@ -11,18 +11,16 @@ namespace OnlineCourses.Application.Services
 {
     public class LessonService : ILessonService
     {
-        private readonly ILessonRepository _lessonRepository;
-        private readonly ICourseRepository _courseRepository;
+        private readonly IUnitOfWork _unitOfWork;
 
-        public LessonService(ILessonRepository lessonRepository, ICourseRepository courseRepository)
+        public LessonService(IUnitOfWork unitOfWork)
         {
-            _lessonRepository = lessonRepository;
-            _courseRepository = courseRepository;
+            _unitOfWork = unitOfWork;
         }
 
         public async Task<ApiResult<IEnumerable<LessonDto>>> GetByCourseIdAsync(Guid courseId)
         {
-            var lessons = await _lessonRepository.GetByCourseIdAsync(courseId);
+            var lessons = await _unitOfWork.Lessons.GetByCourseIdAsync(courseId);
             var dtos = lessons.Select(l => new LessonDto
             {
                 Id = l.Id,
@@ -36,10 +34,10 @@ namespace OnlineCourses.Application.Services
 
         public async Task<ApiResult<LessonDto>> CreateAsync(CreateLessonDto dto)
         {
-            var course = await _courseRepository.GetByIdAsync(dto.CourseId);
+            var course = await _unitOfWork.Courses.GetByIdAsync(dto.CourseId);
             if (course == null) return ApiResult<LessonDto>.Fail("Course not found");
 
-            if (!await _lessonRepository.IsOrderUniqueAsync(dto.CourseId, dto.Order))
+            if (!await _unitOfWork.Lessons.IsOrderUniqueAsync(dto.CourseId, dto.Order))
             {
                 return ApiResult<LessonDto>.Fail($"A lesson with order {dto.Order} already exists in this course.");
             }
@@ -51,7 +49,8 @@ namespace OnlineCourses.Application.Services
                 Order = dto.Order
             };
 
-            await _lessonRepository.AddAsync(lesson);
+            await _unitOfWork.Lessons.AddAsync(lesson);
+            await _unitOfWork.SaveChangesAsync();
 
             return ApiResult<LessonDto>.Ok(new LessonDto
             {
@@ -65,10 +64,10 @@ namespace OnlineCourses.Application.Services
 
         public async Task<ApiResult<LessonDto>> UpdateAsync(Guid id, UpdateLessonDto dto)
         {
-            var lesson = await _lessonRepository.GetByIdAsync(id);
+            var lesson = await _unitOfWork.Lessons.GetByIdAsync(id);
             if (lesson == null) return ApiResult<LessonDto>.Fail("Lesson not found");
 
-            if (!await _lessonRepository.IsOrderUniqueAsync(lesson.CourseId, dto.Order, excludeLessonId: id))
+            if (!await _unitOfWork.Lessons.IsOrderUniqueAsync(lesson.CourseId, dto.Order, excludeLessonId: id))
             {
                 return ApiResult<LessonDto>.Fail($"A lesson with order {dto.Order} already exists in this course.");
             }
@@ -76,7 +75,8 @@ namespace OnlineCourses.Application.Services
             lesson.Title = dto.Title;
             lesson.Order = dto.Order;
 
-            await _lessonRepository.UpdateAsync(lesson);
+            await _unitOfWork.Lessons.UpdateAsync(lesson);
+            await _unitOfWork.SaveChangesAsync();
 
             return ApiResult<LessonDto>.Ok(new LessonDto
             {
@@ -90,11 +90,12 @@ namespace OnlineCourses.Application.Services
 
         public async Task<ApiResult<bool>> DeleteAsync(Guid id)
         {
-            var lesson = await _lessonRepository.GetByIdAsync(id);
+            var lesson = await _unitOfWork.Lessons.GetByIdAsync(id);
             if (lesson == null) return ApiResult<bool>.Fail("Lesson not found");
 
             lesson.IsDeleted = true;
-            await _lessonRepository.UpdateAsync(lesson);
+            await _unitOfWork.Lessons.UpdateAsync(lesson);
+            await _unitOfWork.SaveChangesAsync();
             return ApiResult<bool>.Ok(true);
         }
 
@@ -110,7 +111,7 @@ namespace OnlineCourses.Application.Services
                 return ApiResult<bool>.Fail("Duplicate lesson IDs provided in the request.");
             }
 
-            var lessons = (await _lessonRepository.GetByCourseIdAsync(courseId)).ToList();
+            var lessons = (await _unitOfWork.Lessons.GetByCourseIdAsync(courseId)).ToList();
 
             // Check if all provided IDs exist in the course
             var lessonIds = lessons.Select(l => l.Id).ToHashSet();
@@ -119,17 +120,11 @@ namespace OnlineCourses.Application.Services
                 return ApiResult<bool>.Fail("One or more lessons do not belong to this course.");
             }
 
-            // Check if new orders invoke any collision with existing lessons NOT in the list?
-            // The requirement says "reordenar". Usually updates all or a subset.
-            // If we update a subset, we must ensure collisions are handled.
-            // Simplest safe way: update the lessons in memory, check for collisions among ALL active lessons of the course.
-
             // Apply changes in memory
             foreach (var item in newOrders)
             {
                 var lesson = lessons.First(l => l.Id == item.LessonId);
                 lesson.Order = item.NewOrder;
-                // Mark for update?
             }
 
             // Validate uniqueness across ALL lessons of the course
@@ -139,12 +134,22 @@ namespace OnlineCourses.Application.Services
                 return ApiResult<bool>.Fail("The resulting orders would contain duplicates.");
             }
 
-            // apply updates
+            // To avoid temporary unique constraint violations in PostgreSQL, 
+            // we first set all orders to a temporary negative range.
+            var allLessonsInDb = (await _unitOfWork.Lessons.GetByCourseIdAsync(courseId)).ToList();
+            for (int i = 0; i < allLessonsInDb.Count; i++)
+            {
+                allLessonsInDb[i].Order = -(i + 1);
+                await _unitOfWork.Lessons.UpdateAsync(allLessonsInDb[i]);
+            }
+            await _unitOfWork.SaveChangesAsync();
+
+            // Now apply the final orders
             foreach (var lesson in lessons)
             {
-                // We just call generic repository Update which marks state Modified
-                await _lessonRepository.UpdateAsync(lesson);
+                await _unitOfWork.Lessons.UpdateAsync(lesson);
             }
+            await _unitOfWork.SaveChangesAsync();
 
             return ApiResult<bool>.Ok(true);
         }

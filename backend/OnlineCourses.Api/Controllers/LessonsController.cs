@@ -3,13 +3,15 @@ using System.Collections.Generic;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Asp.Versioning;
 using OnlineCourses.Application.DTOs;
 using OnlineCourses.Application.Interfaces;
 
 namespace OnlineCourses.Api.Controllers
 {
+    [ApiVersion("1.0")]
     [Authorize]
-    [Route("api/[controller]")]
+    [Route("api/v{version:apiVersion}/[controller]")]
     [ApiController]
     public class LessonsController : ControllerBase
     {
@@ -20,6 +22,9 @@ namespace OnlineCourses.Api.Controllers
             _lessonService = lessonService;
         }
 
+        /// <summary>
+        /// Gets all lessons for a specific course.
+        /// </summary>
         [HttpGet("course/{courseId}")]
         public async Task<IActionResult> GetByCourse(Guid courseId)
         {
@@ -27,6 +32,9 @@ namespace OnlineCourses.Api.Controllers
             return Ok(result.Data);
         }
 
+        /// <summary>
+        /// Creates a new lesson for a course.
+        /// </summary>
         [HttpPost]
         public async Task<IActionResult> Create([FromBody] CreateLessonDto dto)
         {
@@ -35,6 +43,9 @@ namespace OnlineCourses.Api.Controllers
             return Ok(result.Data);
         }
 
+        /// <summary>
+        /// Updates an existing lesson's information.
+        /// </summary>
         [HttpPut("{id}")]
         public async Task<IActionResult> Update(Guid id, [FromBody] UpdateLessonDto dto)
         {
@@ -43,6 +54,9 @@ namespace OnlineCourses.Api.Controllers
             return Ok(result.Data);
         }
 
+        /// <summary>
+        /// Soft deletes a lesson.
+        /// </summary>
         [HttpDelete("{id}")]
         public async Task<IActionResult> Delete(Guid id)
         {
@@ -51,12 +65,12 @@ namespace OnlineCourses.Api.Controllers
             return NoContent();
         }
 
+        /// <summary>
+        /// Reorders lessons within a course.
+        /// </summary>
         [HttpPost("reorder")]
         public async Task<IActionResult> Reorder(Guid courseId, [FromBody] List<ReorderLessonDto> newOrders)
         {
-            // Note: courseId in query or Body? Requirement says list of inputs.
-            // I added courseId to method arg, often passed in query or route, but here let's assume body contains IDs.
-            // Actually, validating courseId helps safety.
             var result = await _lessonService.ReorderAsync(courseId, newOrders);
             if (!result.Success) return BadRequest(new { message = result.ErrorMessage });
             return Ok(new { message = "Lessons reordered successfully." });

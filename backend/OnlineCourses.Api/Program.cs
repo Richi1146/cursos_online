@@ -41,6 +41,24 @@ builder.Services.AddSwaggerGen(c =>
             new string[] {}
         }
     });
+
+    // XML Documentation
+    var xmlFile = $"{System.Reflection.Assembly.GetExecutingAssembly().GetName().Name}.xml";
+    var xmlPath = System.IO.Path.Combine(AppContext.BaseDirectory, xmlFile);
+    c.IncludeXmlComments(xmlPath);
+});
+
+// API Versioning
+builder.Services.AddApiVersioning(options =>
+{
+    options.DefaultApiVersion = new Asp.Versioning.ApiVersion(1, 0);
+    options.AssumeDefaultVersionWhenUnspecified = true;
+    options.ReportApiVersions = true;
+    options.ApiVersionReader = new Asp.Versioning.UrlSegmentApiVersionReader();
+}).AddApiExplorer(options =>
+{
+    options.GroupNameFormat = "'v'VVV";
+    options.SubstituteApiVersionInUrl = true;
 });
 
 // Layer Dependencies
@@ -95,29 +113,41 @@ app.UseAuthorization();
 
 app.MapControllers();
 
-// Database Seeding & Migration
-using (var scope = app.Services.CreateScope())
-{
-    var services = scope.ServiceProvider;
-    try
-    {
-        var context = services.GetRequiredService<AppDbContext>();
-        // Apply migrations automatically
-        if (context.Database.GetPendingMigrations().Any())
+        // Database Seeding & Migration
+        using (var scope = app.Services.CreateScope())
         {
-            context.Database.Migrate();
+            var services = scope.ServiceProvider;
+            var logger = services.GetRequiredService<ILogger<Program>>();
+            var context = services.GetRequiredService<AppDbContext>();
+            
+            int retries = 10;
+            while (retries > 0)
+            {
+                try
+                {
+                    logger.LogInformation("Attempting to apply migrations (Retries left: {Retries})...", retries);
+                    context.Database.Migrate();
+
+                    var userManager = services.GetRequiredService<UserManager<AppUser>>();
+                    var roleManager = services.GetRequiredService<RoleManager<IdentityRole>>();
+                    var config = services.GetRequiredService<IConfiguration>();
+
+                    logger.LogInformation("Seeding database...");
+                    await DbSeeder.SeedAsync(userManager, roleManager, config);
+                    logger.LogInformation("Database migration and seeding completed successfully.");
+                    break;
+                }
+                catch (Exception ex)
+                {
+                    retries--;
+                    logger.LogWarning(ex, "An error occurred during database migration or seeding. Retrying in 5 seconds...");
+                    if (retries == 0)
+                    {
+                        logger.LogError(ex, "Could not apply migrations or seed database after multiple attempts.");
+                    }
+                    System.Threading.Thread.Sleep(5000);
+                }
+            }
         }
-
-        var userManager = services.GetRequiredService<UserManager<AppUser>>();
-        var config = services.GetRequiredService<IConfiguration>();
-
-        await DbSeeder.SeedAsync(userManager, config);
-    }
-    catch (Exception ex)
-    {
-        var logger = services.GetRequiredService<ILogger<Program>>();
-        logger.LogError(ex, "An error occurred during database migration or seeding.");
-    }
-}
 
 app.Run();
