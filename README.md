@@ -56,20 +56,6 @@ graph TD
 
 ---
 
-## 🛠️ Solución de Problemas (Troubleshooting)
-
-### Error 500 en Login (Conectividad DB)
-Si experimentas un error 500 al intentar loguearte, generalmente se debe a que el backend no puede alcanzar la base de datos.
-1. Verifica que el contenedor de la base de datos esté corriendo: `docker ps`.
-2. Asegúrate de que los puertos no estén en conflicto.
-3. Si usas el despliegue manual, verifica que el backend use el nombre del contenedor de la DB (`onlinecourses_db_manual`) en su cadena de conexión.
-
-### Problemas con Docker (Permisos/Zombies)
-Si Docker muestra errores de "permission denied" o contenedores que no se detienen:
-1. Reinicia el servicio de Docker: `sudo systemctl restart docker`.
-2. Limpia recursos huérfanos: `docker system prune -f`.
-3. Si persiste, un reinicio de la máquina host suele ser la solución definitiva.
-
 ---
 
 ## 🧪 Pruebas (Testing)
